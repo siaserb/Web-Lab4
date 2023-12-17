@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Socket.IO Chat</title>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      margin: 20px;
+      background-color: #f4f4f4;
+      overflow: hidden;
+    }
+
+    #messages {
+      list-style-type: none;
+      padding: 0;
+      overflow-y: auto;
+      max-height: calc(100vh - 200px);
+      background-color: #ecf0f1;
+      border-radius: 10px;
+      padding: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    #messages li {
+      margin-bottom: 10px;
+      background-color: #fff;
+      border-radius: 10px;
+      padding: 10px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    #messages li span {
+      font-weight: bold;
+      margin-right: 5px;
+      color: #3498db;
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      margin-top: 20px;
+      margin-bottom: 20px;
+    }
+
+    input {
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      margin-bottom: 10px;
+      box-sizing: border-box;
+      max-width: 100%;
+    }
+
+    button {
+      padding: 10px;
+      border: none;
+      border-radius: 5px;
+      background-color: #3498db;
+      color: #fff;
+      cursor: pointer;
+      box-sizing: border-box;
+    }
+
+    #currentUsername {
+      font-size: 1.2em;
+      margin-bottom: 10px;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <ul id="messages"></ul>
+
+  <label id="currentUsername"></label>
+
+  <form id="form" action="">
+    <input id="m" autocomplete="off" placeholder="Type your message..." />
+    <button>Send</button>
+  </form>
+
+  <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    $(function () {
+      var username = prompt("Please enter your name") || 'Guest';
+      localStorage.setItem('username', username);
+
+      var sessionId = localStorage.getItem('sessionId');
+      if (!sessionId) {
+        sessionId = Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('sessionId', sessionId);
+      }
+
+      var socket = io({ query: { username: localStorage.getItem('username'), sessionId: sessionId } });
+
+      var chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [];
+
+      for (var i = 0; i < chatHistory.length; i++) {
+        $('#messages').append($('<li>').html(`<span>${chatHistory[i].user}:</span> ${chatHistory[i].message}`));
+      }
+
+      $('#form').submit(function(){
+        var message = $('#m').val().trim();
+        if (message.length > 0 && message.length <= 1000) {
+          socket.emit('chat message', { message: message });
+          addMessageToHistory(socket.username, message);
+          $('#m').val('');
+
+          var chatContainer = $('#messages');
+          if (chatContainer.scrollTop() + chatContainer.innerHeight() >= chatContainer[0].scrollHeight) {
+            chatContainer.scrollTop(chatContainer[0].scrollHeight);
+          }
+        } else {
+          alert('Please enter a non-empty message and no longer than 1000.');
+        }
+
+        return false;
+      });
+
+      var shouldAutoScroll = true;
+      chatContainer = $('#messages');
+      chatContainer.scroll(function () {
+        shouldAutoScroll = chatContainer.scrollTop() + chatContainer.innerHeight() >= chatContainer[0].scrollHeight;
+      });
+
+      socket.on('chat message', function(data){
+        $('#messages').append($('<li>').html(`<span>${data.user}:</span> ${data.message}`));
+        addMessageToHistory(data.user, data.message);
+
+        if (shouldAutoScroll) {
+          chatContainer.scrollTop(chatContainer[0].scrollHeight);
+        }
+      });
+
+      socket.on('session id', function(sessionId){
+        localStorage.setItem('sessionId', sessionId);
+      });
+
+      $('#changeUsername').click(function() {
+        $('#changeUsernameForm').slideDown();
+      });
+
+      displayCurrentUsername();
+
+      function addMessageToHistory(user, message) {
+        var chatHistoryItem = { user: user, message: message };
+        chatHistory.push(chatHistoryItem);
+
+        if (chatHistory.length > 50) {
+          chatHistory.shift();
+        }
+
+        localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+      }
+
+      function displayCurrentUsername() {
+        var currentUsername = localStorage.getItem('username') || 'Guest';
+        $('#currentUsername').text('Your Username: ' + currentUsername);
+      }
+    });
+  </script>
+</body>
+</html>
